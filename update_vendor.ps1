@@ -38,7 +38,7 @@ function Sync-Repo {
     }
 
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "ERREUR : $Name a echoue (code $LASTEXITCODE)"
+        Write-Host "ERREUR $Name code $LASTEXITCODE"
     }
 }
 
