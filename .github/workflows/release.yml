@@ -17,12 +17,11 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # ── Crée ou met à jour la release GitHub ────────────────────────────────────
+  # ── Crée la release GitHub ────────────────────────────────────────────────
   create-release:
     name: Create Release
     runs-on: ubuntu-latest
     outputs:
-      upload_url: ${{ steps.create.outputs.upload_url }}
       tag: ${{ steps.tag.outputs.tag }}
     steps:
       - name: Get tag
@@ -34,19 +33,18 @@ jobs:
             echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create Release
-        id: create
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: "Syber ${{ steps.tag.outputs.tag }}"
           draft: false
           prerelease: false
-          make_latest: true
           body: |
             ## Syber ${{ steps.tag.outputs.tag }}
 
-            Ultra-low latency remote desktop built on **Kyber** (QUIC + H.264). Rust alternative to Moonlight/Sunshine.
+            Ultra-low latency remote desktop built on **Kyber** (QUIC + H.264).
+            Rust alternative to Moonlight/Sunshine.
 
             ### Téléchargements
 
@@ -57,7 +55,7 @@ jobs:
             | macOS arm64 (M1/M2/M3/M4) | `syber-client-macos-arm64.tar.gz` | — |
             | macOS x86_64 (Intel) | `syber-client-macos-x86_64.tar.gz` | — |
 
-            ### Utilisation
+            ### Utilisation rapide
             1. Lancer `syber-server` sur la machine distante → copier l'**empreinte TLS**
             2. Lancer `syber-client` → entrer IP + mot de passe + empreinte
             3. **Ctrl+Shift+Q** pour déconnecter
@@ -70,7 +68,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ── Matrix de builds ─────────────────────────────────────────────────────────
+  # ── Matrix builds ─────────────────────────────────────────────────────────
   build:
     name: ${{ matrix.name }}
     needs: create-release
@@ -79,7 +77,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # ── CLIENT ──────────────────────────────────────────────────────────
+          # Client — macOS arm64
           - name: client-macos-arm64
             os: macos-latest
             target: aarch64-apple-darwin
@@ -87,6 +85,7 @@ jobs:
             archive: syber-client-macos-arm64.tar.gz
             archive_cmd: tar
 
+          # Client — macOS x86_64
           - name: client-macos-x86_64
             os: macos-13
             target: x86_64-apple-darwin
@@ -94,6 +93,7 @@ jobs:
             archive: syber-client-macos-x86_64.tar.gz
             archive_cmd: tar
 
+          # Client — Linux x64
           - name: client-linux-x64
             os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
@@ -101,6 +101,7 @@ jobs:
             archive: syber-client-linux-x64.tar.gz
             archive_cmd: tar
 
+          # Client — Windows x64
           - name: client-windows-x64
             os: windows-latest
             target: x86_64-pc-windows-msvc
@@ -109,7 +110,7 @@ jobs:
             archive: syber-client-windows-x64.zip
             archive_cmd: zip
 
-          # ── SERVER ──────────────────────────────────────────────────────────
+          # Server — Linux x64
           - name: server-linux-x64
             os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
@@ -117,6 +118,7 @@ jobs:
             archive: syber-server-linux-x64.tar.gz
             archive_cmd: tar
 
+          # Server — Windows x64
           - name: server-windows-x64
             os: windows-latest
             target: x86_64-pc-windows-msvc
@@ -129,105 +131,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ── Clone Kyber vendor repos ─────────────────────────────────────────────
-      - name: Clone Kyber vendor (core)
-        shell: bash
-        run: |
-          mkdir -p vendor/deps
-          repos_core=(
-            "kyutil https://gitlab.com/kyber/core/kyutil.git"
-            "kymux  https://gitlab.com/kyber/core/kymux.git"
-            "kymedia https://gitlab.com/kyber/core/kymedia.git"
-            "kynput https://gitlab.com/kyber/core/kynput.git"
-            "kysdk  https://gitlab.com/kyber/core/kysdk.git"
-          )
-          for entry in "${repos_core[@]}"; do
-            name=$(echo $entry | awk '{print $1}')
-            url=$(echo $entry | awk '{print $2}')
-            echo "Cloning $name..."
-            git clone --depth=1 "$url" "vendor/$name"
-          done
-
-      - name: Clone Kyber vendor (deps)
-        shell: bash
-        run: |
-          repos_deps=(
-            "keycode    https://gitlab.com/kyber/deps/keycode.git"
-            "libudev-sys https://gitlab.com/kyber/deps/libudev-sys.git"
-            "rust-sdl2  https://gitlab.com/kyber/deps/rust-sdl2.git"
-            "vigem-client https://gitlab.com/kyber/deps/vigem-client.git"
-            "txproto    https://gitlab.com/kyber/deps/txproto.git"
-            "vlc-rs     https://gitlab.com/kyber/deps/vlc-rs.git"
-            "winit      https://gitlab.com/kyber/deps/winit.git"
-          )
-          for entry in "${repos_deps[@]}"; do
-            name=$(echo $entry | awk '{print $1}')
-            url=$(echo $entry | awk '{print $2}')
-            echo "Cloning $name..."
-            git clone --depth=1 "$url" "vendor/deps/$name"
-          done
-
-      # ── Appliquer les patches nécessaires ───────────────────────────────────
-      - name: Patch kynput (macOS only)
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          FILE="vendor/kynput/kynput/src/macos/pipeline_config.rs"
-          python3 - <<'EOF'
-          import re
-
-          with open("vendor/kynput/kynput/src/macos/pipeline_config.rs", "r") as f:
-              content = f.read()
-
-          old = '''        let mut builders: Vec<InputHandlerBuilder> = vec![Box::new(move |router| {
-                  #[cfg(feature = "sdl2")]
-                  Ok(Arc::new(ClientGamepadHandler::new(router)?))
-              })];'''
-
-          new = '''        let mut builders: Vec<InputHandlerBuilder> = vec![];
-                  #[cfg(feature = "sdl2")]
-                  builders.push(Box::new(move |router| {
-                      Ok(Arc::new(ClientGamepadHandler::new(router)?) as Arc<dyn crate::InputHandler>)
-                  }));'''
-
-          if old in content:
-              content = content.replace(old, new)
-              with open("vendor/kynput/kynput/src/macos/pipeline_config.rs", "w") as f:
-                  f.write(content)
-              print("kynput patch applied")
-          else:
-              print("kynput patch: pattern not found (may already be patched)")
-          EOF
-
-      - name: Patch xcap registry (macOS only)
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          # xcap 0.0.14 a un bug de type annotation sur macOS
-          find ~/.cargo/registry/src -path '*/xcap-0.0.14/src/macos/boxed.rs' 2>/dev/null | while read f; do
-            echo "Patching $f"
-            sed -i '' 's/CFRelease(self\.cf_array_ref\.to_void())/CFRelease(self.cf_array_ref as *const _)/g' "$f"
-          done
-
-      # ── Rust toolchain ───────────────────────────────────────────────────────
-      - name: Install Rust
+      # ── Rust toolchain ──────────────────────────────────────────────────────
+      - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      - name: Cache Cargo
+      # ── Cache ───────────────────────────────────────────────────────────────
+      - name: Cache Cargo registry
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
           key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.target }}-cargo-
+          restore-keys: ${{ runner.os }}-${{ matrix.target }}-cargo-
 
-      # ── Dépendances système ──────────────────────────────────────────────────
-      - name: Install Linux deps
+      # ── Dépendances système Linux ───────────────────────────────────────────
+      - name: Install Linux system deps
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
@@ -236,35 +158,152 @@ jobs:
             libxcb1-dev libxcb-shm0-dev libxcb-randr0-dev \
             libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
             libxcb-keysyms1-dev libxcb-image0-dev libxcb-util-dev \
-            libgl1-mesa-dev libgles2-mesa-dev \
-            libfontconfig1-dev libfreetype-dev \
-            pkg-config libclang-dev \
-            libevdev-dev libudev-dev \
-            libdbus-1-dev
+            libgl1-mesa-dev libfontconfig1-dev libfreetype-dev \
+            libevdev-dev libudev-dev libdbus-1-dev \
+            pkg-config libclang-dev
+
+      # ── Clone Kyber vendor repos ────────────────────────────────────────────
+      - name: Clone Kyber core repos
+        shell: bash
+        run: |
+          mkdir -p vendor/deps
+          for entry in \
+            "kyutil:https://gitlab.com/kyber/core/kyutil.git" \
+            "kymux:https://gitlab.com/kyber/core/kymux.git" \
+            "kymedia:https://gitlab.com/kyber/core/kymedia.git" \
+            "kynput:https://gitlab.com/kyber/core/kynput.git" \
+            "kysdk:https://gitlab.com/kyber/core/kysdk.git"
+          do
+            name="${entry%%:*}"
+            url="${entry#*:}"
+            echo "→ $name"
+            git clone --depth=1 "$url" "vendor/$name"
+          done
+
+      - name: Clone Kyber deps repos
+        shell: bash
+        run: |
+          for entry in \
+            "keycode:https://gitlab.com/kyber/deps/keycode.git" \
+            "libudev-sys:https://gitlab.com/kyber/deps/libudev-sys.git" \
+            "rust-sdl2:https://gitlab.com/kyber/deps/rust-sdl2.git" \
+            "vigem-client:https://gitlab.com/kyber/deps/vigem-client.git" \
+            "txproto:https://gitlab.com/kyber/deps/txproto.git" \
+            "vlc-rs:https://gitlab.com/kyber/deps/vlc-rs.git" \
+            "winit:https://gitlab.com/kyber/deps/winit.git"
+          do
+            name="${entry%%:*}"
+            url="${entry#*:}"
+            echo "→ $name"
+            git clone --depth=1 "$url" "vendor/deps/$name"
+          done
+
+      # ── Patches macOS ───────────────────────────────────────────────────────
+      - name: Patch kynput (macOS — sdl2 feature guard fix)
+        if: runner.os == 'macOS'
+        shell: python3 {0}
+        run: |
+          import re, sys
+
+          path = "vendor/kynput/kynput/src/macos/pipeline_config.rs"
+          with open(path) as f:
+              src = f.read()
+
+          # Pattern: closure that returns () when sdl2 not enabled
+          old = (
+              '        let mut builders: Vec<InputHandlerBuilder> = vec![Box::new(move |router| {\n'
+              '                  #[cfg(feature = "sdl2")]\n'
+              '                  Ok(Arc::new(ClientGamepadHandler::new(router)?))\n'
+              '              })];'
+          )
+          new = (
+              '        let mut builders: Vec<InputHandlerBuilder> = vec![];\n'
+              '              #[cfg(feature = "sdl2")]\n'
+              '              builders.push(Box::new(move |router| {\n'
+              '                  Ok(Arc::new(ClientGamepadHandler::new(router)?) as Arc<dyn crate::InputHandler>)\n'
+              '              }));'
+          )
+
+          if old in src:
+              src = src.replace(old, new)
+              with open(path, "w") as f:
+                  f.write(src)
+              print("kynput patch applied ✓")
+          else:
+              # Try looser match
+              if 'vec![Box::new(move |router| {' in src:
+                  src = re.sub(
+                      r'let mut builders: Vec<InputHandlerBuilder> = vec!\[Box::new\(move \|router\| \{.*?\}\)\];',
+                      'let mut builders: Vec<InputHandlerBuilder> = vec![];',
+                      src, flags=re.DOTALL
+                  )
+                  with open(path, "w") as f:
+                      f.write(src)
+                  print("kynput patch applied (loose) ✓")
+              else:
+                  print("kynput: no pattern found, may already be ok")
+
+      # Fetch cargo deps AVANT de patcher le registry xcap
+      - name: Cargo fetch (populate registry)
+        shell: bash
+        run: cargo fetch --target ${{ matrix.target }}
+
+      - name: Patch xcap registry (macOS — type annotation fix)
+        if: runner.os == 'macOS'
+        shell: python3 {0}
+        run: |
+          import os, glob
+
+          pattern = os.path.expanduser(
+              "~/.cargo/registry/src/*/xcap-0.0.14/src/macos/boxed.rs"
+          )
+          files = glob.glob(pattern, recursive=False)
+
+          if not files:
+              print("xcap boxed.rs not found in registry — skipping")
+          else:
+              for path in files:
+                  with open(path) as f:
+                      src = f.read()
+                  if "to_void()" in src:
+                      src = src.replace(
+                          "CFRelease(self.cf_array_ref.to_void())",
+                          "CFRelease(self.cf_array_ref as *const _)"
+                      )
+                      with open(path, "w") as f:
+                          f.write(src)
+                      print(f"xcap patched: {path} ✓")
+                  else:
+                      print(f"xcap already patched: {path}")
 
       # ── Build ────────────────────────────────────────────────────────────────
       - name: Build ${{ matrix.binary }}
-        run: cargo build --release --bin ${{ matrix.binary }} --target ${{ matrix.target }}
+        shell: bash
+        run: |
+          cargo build --release \
+            --bin ${{ matrix.binary }} \
+            --target ${{ matrix.target }}
         env:
-          CARGO_PROFILE_RELEASE_OPT_LEVEL: "3"
-          CARGO_PROFILE_RELEASE_LTO: "thin"
+          CARGO_PROFILE_RELEASE_LTO: thin
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
 
       # ── Package ──────────────────────────────────────────────────────────────
-      - name: Package (tar)
+      - name: Package binary (tar.gz)
         if: matrix.archive_cmd == 'tar'
         shell: bash
         run: |
-          BIN="target/${{ matrix.target }}/release/${{ matrix.binary }}${{ matrix.ext }}"
-          tar -czf "${{ matrix.archive }}" -C "$(dirname $BIN)" "$(basename $BIN)"
+          BIN="target/${{ matrix.target }}/release/${{ matrix.binary }}"
+          tar -czf "${{ matrix.archive }}" -C "$(dirname "$BIN")" "$(basename "$BIN")"
+          echo "Packaged: ${{ matrix.archive }} ($(du -sh "${{ matrix.archive }}" | cut -f1))"
 
-      - name: Package (zip)
+      - name: Package binary (zip)
         if: matrix.archive_cmd == 'zip'
         shell: bash
         run: |
           BIN="target/${{ matrix.target }}/release/${{ matrix.binary }}${{ matrix.ext }}"
-          cd "$(dirname $BIN)"
-          7z a -tzip "${{ github.workspace }}/${{ matrix.archive }}" "$(basename $BIN)"
+          cd "$(dirname "$BIN")"
+          7z a -tzip "${{ github.workspace }}/${{ matrix.archive }}" "$(basename "$BIN")"
+          echo "Packaged: ${{ matrix.archive }}"
 
       # ── Upload vers la release ───────────────────────────────────────────────
       - name: Upload to Release
