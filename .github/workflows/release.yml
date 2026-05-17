@@ -1,0 +1,272 @@
+name: Build & Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag de release (ex: v0.1.0)"
+        required: true
+        default: "v0.1.0"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ── Crée ou met à jour la release GitHub ────────────────────────────────────
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create.outputs.upload_url }}
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Get tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        id: create
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: "Syber ${{ steps.tag.outputs.tag }}"
+          draft: false
+          prerelease: false
+          body: |
+            ## Syber ${{ steps.tag.outputs.tag }}
+
+            Ultra-low latency remote desktop built on **Kyber** (QUIC + H.264). Rust alternative to Moonlight/Sunshine.
+
+            ### Téléchargements
+
+            | Plateforme | Client | Serveur |
+            |------------|--------|---------|
+            | Windows x64 | `syber-client-windows-x64.zip` | `syber-server-windows-x64.zip` |
+            | Linux x64 | `syber-client-linux-x64.tar.gz` | `syber-server-linux-x64.tar.gz` |
+            | macOS arm64 (M1/M2/M3/M4) | `syber-client-macos-arm64.tar.gz` | — |
+            | macOS x86_64 (Intel) | `syber-client-macos-x86_64.tar.gz` | — |
+
+            ### Utilisation
+            1. Lancer `syber-server` sur la machine distante → copier l'**empreinte TLS**
+            2. Lancer `syber-client` → entrer IP + mot de passe + empreinte
+            3. **Ctrl+Shift+Q** pour déconnecter
+
+            ### Build depuis les sources
+            ```bash
+            ./update_vendor.sh   # clone les dépendances Kyber
+            cargo build --release
+            ```
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Matrix de builds ─────────────────────────────────────────────────────────
+  build:
+    name: ${{ matrix.name }}
+    needs: create-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ── CLIENT ──────────────────────────────────────────────────────────
+          - name: client-macos-arm64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            binary: syber-client
+            archive: syber-client-macos-arm64.tar.gz
+            archive_cmd: tar
+
+          - name: client-macos-x86_64
+            os: macos-13
+            target: x86_64-apple-darwin
+            binary: syber-client
+            archive: syber-client-macos-x86_64.tar.gz
+            archive_cmd: tar
+
+          - name: client-linux-x64
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            binary: syber-client
+            archive: syber-client-linux-x64.tar.gz
+            archive_cmd: tar
+
+          - name: client-windows-x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary: syber-client
+            ext: .exe
+            archive: syber-client-windows-x64.zip
+            archive_cmd: zip
+
+          # ── SERVER ──────────────────────────────────────────────────────────
+          - name: server-linux-x64
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            binary: syber-server
+            archive: syber-server-linux-x64.tar.gz
+            archive_cmd: tar
+
+          - name: server-windows-x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary: syber-server
+            ext: .exe
+            archive: syber-server-windows-x64.zip
+            archive_cmd: zip
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Clone Kyber vendor repos ─────────────────────────────────────────────
+      - name: Clone Kyber vendor (core)
+        shell: bash
+        run: |
+          mkdir -p vendor/deps
+          repos_core=(
+            "kyutil https://gitlab.com/kyber/core/kyutil.git"
+            "kymux  https://gitlab.com/kyber/core/kymux.git"
+            "kymedia https://gitlab.com/kyber/core/kymedia.git"
+            "kynput https://gitlab.com/kyber/core/kynput.git"
+            "kysdk  https://gitlab.com/kyber/core/kysdk.git"
+          )
+          for entry in "${repos_core[@]}"; do
+            name=$(echo $entry | awk '{print $1}')
+            url=$(echo $entry | awk '{print $2}')
+            echo "Cloning $name..."
+            git clone --depth=1 "$url" "vendor/$name"
+          done
+
+      - name: Clone Kyber vendor (deps)
+        shell: bash
+        run: |
+          repos_deps=(
+            "keycode    https://gitlab.com/kyber/deps/keycode.git"
+            "libudev-sys https://gitlab.com/kyber/deps/libudev-sys.git"
+            "rust-sdl2  https://gitlab.com/kyber/deps/rust-sdl2.git"
+            "vigem-client https://gitlab.com/kyber/deps/vigem-client.git"
+            "txproto    https://gitlab.com/kyber/deps/txproto.git"
+            "vlc-rs     https://gitlab.com/kyber/deps/vlc-rs.git"
+            "winit      https://gitlab.com/kyber/deps/winit.git"
+          )
+          for entry in "${repos_deps[@]}"; do
+            name=$(echo $entry | awk '{print $1}')
+            url=$(echo $entry | awk '{print $2}')
+            echo "Cloning $name..."
+            git clone --depth=1 "$url" "vendor/deps/$name"
+          done
+
+      # ── Appliquer les patches nécessaires ───────────────────────────────────
+      - name: Patch kynput (macOS only)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          FILE="vendor/kynput/kynput/src/macos/pipeline_config.rs"
+          python3 - <<'EOF'
+          import re
+
+          with open("vendor/kynput/kynput/src/macos/pipeline_config.rs", "r") as f:
+              content = f.read()
+
+          old = '''        let mut builders: Vec<InputHandlerBuilder> = vec![Box::new(move |router| {
+                  #[cfg(feature = "sdl2")]
+                  Ok(Arc::new(ClientGamepadHandler::new(router)?))
+              })];'''
+
+          new = '''        let mut builders: Vec<InputHandlerBuilder> = vec![];
+                  #[cfg(feature = "sdl2")]
+                  builders.push(Box::new(move |router| {
+                      Ok(Arc::new(ClientGamepadHandler::new(router)?) as Arc<dyn crate::InputHandler>)
+                  }));'''
+
+          if old in content:
+              content = content.replace(old, new)
+              with open("vendor/kynput/kynput/src/macos/pipeline_config.rs", "w") as f:
+                  f.write(content)
+              print("kynput patch applied")
+          else:
+              print("kynput patch: pattern not found (may already be patched)")
+          EOF
+
+      - name: Patch xcap registry (macOS only)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          # xcap 0.0.14 a un bug de type annotation sur macOS
+          find ~/.cargo/registry/src -path '*/xcap-0.0.14/src/macos/boxed.rs' 2>/dev/null | while read f; do
+            echo "Patching $f"
+            sed -i '' 's/CFRelease(self\.cf_array_ref\.to_void())/CFRelease(self.cf_array_ref as *const _)/g' "$f"
+          done
+
+      # ── Rust toolchain ───────────────────────────────────────────────────────
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-cargo-
+
+      # ── Dépendances système ──────────────────────────────────────────────────
+      - name: Install Linux deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            libx11-dev libxext-dev libxrandr-dev \
+            libxcb1-dev libxcb-shm0-dev libxcb-randr0-dev \
+            libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libxcb-keysyms1-dev libxcb-image0-dev libxcb-util-dev \
+            libgl1-mesa-dev libgles2-mesa-dev \
+            libfontconfig1-dev libfreetype-dev \
+            pkg-config libclang-dev \
+            libevdev-dev libudev-dev \
+            libdbus-1-dev
+
+      # ── Build ────────────────────────────────────────────────────────────────
+      - name: Build ${{ matrix.binary }}
+        run: cargo build --release --bin ${{ matrix.binary }} --target ${{ matrix.target }}
+        env:
+          CARGO_PROFILE_RELEASE_OPT_LEVEL: "3"
+          CARGO_PROFILE_RELEASE_LTO: "thin"
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
+
+      # ── Package ──────────────────────────────────────────────────────────────
+      - name: Package (tar)
+        if: matrix.archive_cmd == 'tar'
+        shell: bash
+        run: |
+          BIN="target/${{ matrix.target }}/release/${{ matrix.binary }}${{ matrix.ext }}"
+          tar -czf "${{ matrix.archive }}" -C "$(dirname $BIN)" "$(basename $BIN)"
+
+      - name: Package (zip)
+        if: matrix.archive_cmd == 'zip'
+        shell: bash
+        run: |
+          BIN="target/${{ matrix.target }}/release/${{ matrix.binary }}${{ matrix.ext }}"
+          cd "$(dirname $BIN)"
+          7z a -tzip "${{ github.workspace }}/${{ matrix.archive }}" "$(basename $BIN)"
+
+      # ── Upload vers la release ───────────────────────────────────────────────
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.create-release.outputs.tag }}
+          files: ${{ matrix.archive }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
