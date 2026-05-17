@@ -10,6 +10,9 @@ on:
         required: true
         default: "v0.1.0"
 
+permissions:
+  contents: write
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -39,6 +42,7 @@ jobs:
           name: "Syber ${{ steps.tag.outputs.tag }}"
           draft: false
           prerelease: false
+          make_latest: true
           body: |
             ## Syber ${{ steps.tag.outputs.tag }}
 
