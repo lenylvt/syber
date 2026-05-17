@@ -322,8 +322,8 @@ if (-not (Test-Network)) { Write-Err "Reseau indisponible"; exit 1 }
 
 $totalFailed = 0
 
-if ($Core) { $totalFailed += Update-Group -Label "CORE  (gitlab.com/kyber/core)" -BaseDir $VENDOR_DIR -Repos $CORE_REPOS; exit ($totalFailed -gt 0 ? 1 : 0) }
-if ($Deps) { $totalFailed += Update-Group -Label "DEPS  (gitlab.com/kyber/deps)" -BaseDir $DEPS_DIR   -Repos $DEPS_REPOS; exit ($totalFailed -gt 0 ? 1 : 0) }
+if ($Core) { $totalFailed += Update-Group -Label "CORE  (gitlab.com/kyber/core)" -BaseDir $VENDOR_DIR -Repos $CORE_REPOS; if ($totalFailed -gt 0) { exit 1 } else { exit 0 } }
+if ($Deps) { $totalFailed += Update-Group -Label "DEPS  (gitlab.com/kyber/deps)" -BaseDir $DEPS_DIR   -Repos $DEPS_REPOS; if ($totalFailed -gt 0) { exit 1 } else { exit 0 } }
 
 $totalFailed += Update-Group -Label "CORE  (gitlab.com/kyber/core)" -BaseDir $VENDOR_DIR -Repos $CORE_REPOS
 $totalFailed += Update-Group -Label "DEPS  (gitlab.com/kyber/deps)" -BaseDir $DEPS_DIR   -Repos $DEPS_REPOS
