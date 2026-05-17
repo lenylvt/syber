@@ -1,0 +1,25 @@
+# Patch Kyber local crates → vendor/
+# These overrides redirect crates.io versions to our local vendor copies.
+
+[patch.crates-io]
+# ── kymux stack ──────────────────────────────────────────────────────────
+kynet       = { path = "vendor/kymux/kynet" }
+kyproto     = { path = "vendor/kymux/kyproto" }
+kymux       = { path = "vendor/kymux/kymux" }
+kymux-types = { path = "vendor/kymux/kymux-types" }
+kymux-util  = { path = "vendor/kymux/kymux-util" }
+kycom       = { path = "vendor/kymux/kycom" }
+
+# ── kynput stack ─────────────────────────────────────────────────────────
+kynput              = { path = "vendor/kynput/kynput" }
+kynput-rs           = { path = "vendor/kynput/kynput-rs" }
+kynputservice-types = { path = "vendor/kynput/kynputservice-types" }
+
+# ── kyutil ───────────────────────────────────────────────────────────────
+libkypc = { path = "vendor/kyutil/libkypc" }
+
+# ── deps forks ───────────────────────────────────────────────────────────
+keycode       = { path = "vendor/deps/keycode/keycode" }
+keycode_macro = { path = "vendor/deps/keycode/keycode_macro" }
+libudev-sys   = { path = "vendor/deps/libudev-sys" }
+vigem-client  = { path = "vendor/deps/vigem-client" }

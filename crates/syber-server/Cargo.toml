@@ -1,0 +1,50 @@
+[package]
+name    = "syber-server"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "syber-server"
+path = "src/main.rs"
+
+[dependencies]
+syber-common = { path = "../syber-common" }
+
+# Kyber
+kyproto     = { workspace = true }
+kymux-types = { workspace = true }
+kynput      = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+
+# UI
+egui    = { workspace = true }
+eframe  = { workspace = true }
+
+# Video capture
+xcap = { workspace = true }
+
+# Video encode  (openh264 bundles the codec — no system deps)
+openh264 = { workspace = true }
+
+# Crypto
+rcgen          = { workspace = true }
+ring           = { workspace = true }
+rustls         = { workspace = true }
+rustls-pemfile = { workspace = true }
+
+# Utils
+anyhow  = { workspace = true }
+bytes   = { workspace = true }
+hex     = { workspace = true }
+log     = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde   = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.61", features = ["Win32_System_SystemInformation", "Win32_NetworkManagement_IpHelper", "Win32_Foundation"] }
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.28", features = ["net"] }

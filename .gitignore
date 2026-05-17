@@ -1,0 +1,15 @@
+# Rust build artifacts
+target/
+
+# Vendor Kyber sources (cloner avec update_vendor.sh)
+vendor/
+
+# Config secrets générés au runtime
+/crates/syber-server/server.json
+/crates/syber-client/client.json
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.orig

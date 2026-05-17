@@ -1,0 +1,39 @@
+[package]
+name    = "syber-client"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "syber-client"
+path = "src/main.rs"
+
+[dependencies]
+syber-common = { path = "../syber-common" }
+
+# Kyber
+kyproto     = { workspace = true }
+kymux-types = { workspace = true }
+kynput      = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+
+# UI
+egui   = { workspace = true }
+eframe = { workspace = true }
+
+# Video decode
+openh264 = { workspace = true }
+
+# Crypto
+ring   = { workspace = true }
+rustls = { workspace = true }
+
+# Utils
+anyhow  = { workspace = true }
+bytes   = { workspace = true }
+hex     = { workspace = true }
+log     = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde   = { workspace = true }

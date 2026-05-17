@@ -1,0 +1,33 @@
+mod app;
+mod session;
+mod decode;
+mod input;
+
+use tracing_subscriber::EnvFilter;
+
+fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env()
+            .add_directive("syber_client=debug".parse().unwrap())
+            .add_directive("warn".parse().unwrap()))
+        .init();
+
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_title("Syber")
+            .with_inner_size([900.0, 600.0])
+            .with_min_inner_size([500.0, 350.0])
+            .with_icon(eframe::icon_data::from_png_bytes(
+                include_bytes!("../assets/icon.png")
+            ).unwrap_or_default()),
+        ..Default::default()
+    };
+
+    eframe::run_native(
+        "Syber",
+        options,
+        Box::new(|cc| Ok(Box::new(app::ClientApp::new(cc)))),
+    ).map_err(|e| anyhow::anyhow!("UI error: {e}"))?;
+
+    Ok(())
+}
