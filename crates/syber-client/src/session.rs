@@ -117,7 +117,13 @@ async fn run_client(
         certificate_hash:    if params.cert_hash.is_empty() {
             None
         } else {
-            Some(params.cert_hash.clone())
+            // Normalise: strip colons/spaces, lowercase
+            // UI shows "B8:66:4A:..." but kynet expects "b8664a..."
+            let clean = params.cert_hash
+                .replace(':', "")
+                .replace(' ', "")
+                .to_lowercase();
+            Some(clean)
         },
     };
 
