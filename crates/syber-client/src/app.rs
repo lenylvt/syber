@@ -95,7 +95,7 @@ impl ClientApp {
             port,
             password:  pass,
             cert_hash: hash,
-            video_protocol: VideoProtocol::GopStream,
+            video_protocol: VideoProtocol::Reliable,
         };
 
         start_client(self.state.clone(), params, cmd_rx);

@@ -209,15 +209,20 @@ async fn handle_client(
     });
 
     // Video capture + encode + send loop
+    info!("Starting video pipeline: display={} scale={} fps={} bitrate={}kbps",
+        config.display_index, config.resolution_scale, config.fps, config.bitrate_kbps);
     let capture = ScreenCapture::new(config.display_index);
     let scale   = config.resolution_scale;
 
     // First frame to establish resolution
+    info!("Capturing first frame…");
     let first = capture.capture(scale).context("first capture")?;
+    info!("First frame captured: {}x{}", first.width, first.height);
     let (enc_w, enc_h) = (first.width, first.height);
 
     let mut encoder = VideoEncoder::new(enc_w, enc_h, config.fps, config.bitrate_kbps)
         .context("encoder init")?;
+    info!("Encoder ready: {}x{}", enc_w, enc_h);
 
     // Stats
     let mut frame_count = 0u64;
@@ -225,7 +230,8 @@ async fn handle_client(
     let mut last_stats  = Instant::now();
     let frame_dur       = Duration::from_secs_f32(1.0 / config.fps.max(1.0));
 
-    send_frame(&first.rgba, &mut encoder, &mut video_proto.send, &config).await?;
+    let sz0 = send_frame(&first.rgba, &mut encoder, &mut video_proto.send, &config).await?;
+    info!("First frame sent: {} bytes", sz0);
 
     loop {
         let t0 = Instant::now();

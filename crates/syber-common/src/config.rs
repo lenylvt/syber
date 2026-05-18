@@ -62,7 +62,7 @@ pub enum VideoProtocolChoice {
 }
 
 impl Default for VideoProtocolChoice {
-    fn default() -> Self { Self::GopStream }
+    fn default() -> Self { Self::Reliable }
 }
 
 impl VideoProtocolChoice {
