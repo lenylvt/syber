@@ -44,7 +44,10 @@ tracing-subscriber = { workspace = true }
 serde   = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.61", features = ["Win32_System_SystemInformation", "Win32_NetworkManagement_IpHelper", "Win32_Foundation"] }
+windows-sys = { version = "0.52", features = [
+    "Win32_Foundation",
+    "Win32_UI_Input_KeyboardAndMouse",
+] }
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.28", features = ["net"] }

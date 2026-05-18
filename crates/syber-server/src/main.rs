@@ -5,7 +5,7 @@ mod capture;
 mod encode;
 mod input;
 
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::EnvFilter;
 
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()

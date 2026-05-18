@@ -254,7 +254,7 @@ impl ClientApp {
                         ui.add_space(12.0);
 
                         let connecting = matches!(status, ClientStatus::Connecting);
-                        ui.set_enabled(!connecting);
+                        if connecting { ui.disable(); }
 
                         let btn = egui::Button::new(
                             RichText::new(if connecting { "  Connexion…  " } else { "  Connecter  " })

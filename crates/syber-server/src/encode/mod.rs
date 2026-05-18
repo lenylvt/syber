@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use bytes::Bytes;
 use openh264::{
     encoder::{Encoder, EncoderConfig},
-    formats::{RgbSliceU8, YUVBuffer, YUVSource},
+    formats::{RgbSliceU8, YUVBuffer},
     OpenH264API,
 };
 

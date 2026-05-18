@@ -96,7 +96,6 @@ fn pem_to_der(pem: &str, label: &str) -> Result<Vec<u8>> {
         .filter(|c| !c.is_whitespace())
         .collect();
 
-    use std::io::Read;
     let bytes = {
         // Simple base64 decode
         base64_decode(&b64)?

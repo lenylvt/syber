@@ -9,7 +9,6 @@ use tokio::sync::mpsc;
 use tracing::{debug, info, warn, error};
 
 use kyproto::{
-    ClientAuth,
     VideoProtocol,
     Server,  // trait: accept_with_auth, close, wait_idle
     common::{CommonServer, CommonServerOptions},

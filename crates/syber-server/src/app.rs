@@ -1,7 +1,7 @@
 //! Server egui application — minimalist, everything in UI.
 
 use std::sync::{Arc, Mutex};
-use egui::{Color32, RichText, Ui, Vec2};
+use egui::{Color32, RichText, Ui};
 use tokio::sync::mpsc;
 
 use syber_common::config::{
@@ -175,8 +175,10 @@ impl eframe::App for ServerApp {
             ui.separator();
 
             let disabled = self.is_running();
-            ui.set_enabled(!disabled);
 
+            if disabled {
+                ui.disable();
+            }
             match self.tab {
                 SettingsTab::Simple   => self.draw_simple_tab(ui),
                 SettingsTab::Advanced => self.draw_advanced_tab(ui),
@@ -285,7 +287,7 @@ impl ServerApp {
             ui.horizontal(|ui| {
                 ui.label("Écran :");
                 let current = config.display_index;
-                egui::ComboBox::from_id_source("monitor_select")
+                egui::ComboBox::from_id_salt("monitor_select")
                     .selected_text(
                         self.monitors.get(current)
                             .map(|(_, name, w, h)| format!("{name} ({w}×{h})"))
@@ -310,7 +312,7 @@ impl ServerApp {
             .show(ui, |ui| {
                 // Codec
                 ui.label("Codec :");
-                egui::ComboBox::from_id_source("codec")
+                egui::ComboBox::from_id_salt("codec")
                     .selected_text(config.codec.label())
                     .show_ui(ui, |ui| {
                         for c in [VideoCodec::H264, VideoCodec::H265] {
@@ -321,7 +323,7 @@ impl ServerApp {
 
                 // Encoder
                 ui.label("Encodeur :");
-                egui::ComboBox::from_id_source("encoder")
+                egui::ComboBox::from_id_salt("encoder")
                     .selected_text(config.encoder.label())
                     .show_ui(ui, |ui| {
                         for e in [
@@ -339,7 +341,7 @@ impl ServerApp {
                 ui.horizontal(|ui| {
                     ui.add(egui::TextEdit::singleline(&mut self.bitrate_str).desired_width(70.0));
                     ui.add(egui::Slider::new(&mut config.bitrate_kbps, 1_000..=50_000)
-                        .suffix(" kbps").clamp_to_range(true));
+                        .suffix(" kbps").clamping(egui::SliderClamping::Always));
                 });
                 self.bitrate_str = config.bitrate_kbps.to_string();
                 ui.end_row();
@@ -349,7 +351,7 @@ impl ServerApp {
                 ui.horizontal(|ui| {
                     ui.add(egui::TextEdit::singleline(&mut self.fps_str).desired_width(50.0));
                     ui.add(egui::Slider::new(&mut config.fps, 1.0..=240.0)
-                        .suffix(" fps").clamp_to_range(true));
+                        .suffix(" fps").clamping(egui::SliderClamping::Always));
                 });
                 self.fps_str = format!("{:.0}", config.fps);
                 ui.end_row();
@@ -362,7 +364,7 @@ impl ServerApp {
 
                 // Protocol
                 ui.label("Protocole vidéo :");
-                egui::ComboBox::from_id_source("vproto")
+                egui::ComboBox::from_id_salt("vproto")
                     .selected_text(config.video_protocol.label())
                     .show_ui(ui, |ui| {
                         for p in [
